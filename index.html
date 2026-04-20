@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Vicio TV - Con números de canal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0a; font-family: system-ui, Arial, sans-serif; color: white; height: 100vh; overflow: hidden; }
+        .main-layout { display: flex; height: 100vh; width: 100%; }
+        .player-column { width: 380px; background: #000; display: flex; flex-direction: column; border-right: 1px solid #222; }
+        .mini-player { position: relative; background: #000; aspect-ratio: 16 / 9; width: 100%; }
+        .mini-player video { width: 100%; height: 100%; object-fit: contain; }
+        .player-info { padding: 12px; background: #0f0f0f; border-bottom: 1px solid #222; }
+        .current-channel { font-weight: bold; font-size: 14px; margin-bottom: 8px; text-align: center; }
+        .current-channel-number { font-size: 11px; color: #ffaa00; margin-bottom: 5px; text-align: center; }
+        .player-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .player-buttons button { background: #1e1e1e; border: none; color: white; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 11px; }
+        .player-buttons button:hover { background: #ff2a2a; }
+        
+        .nav-buttons { display: flex; gap: 15px; justify-content: center; margin-top: 10px; }
+        .nav-btn { background: #ff2a2a; border: none; color: white; padding: 8px 20px; border-radius: 30px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .nav-btn:hover { background: #cc0000; }
+        .nav-btn:disabled { background: #555; cursor: not-allowed; }
+        
+        .info-teclas { text-align: center; font-size: 10px; color: #888; margin-top: 8px; }
+        
+        .channels-column { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 15px; }
+        .header { text-align: center; padding: 10px; border-bottom: 1px solid #222; margin-bottom: 15px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; }
+        .tab-btn { background: #1e1e1e; border: none; color: white; padding: 8px 20px; border-radius: 25px; cursor: pointer; font-size: 13px; }
+        .tab-btn.active { background: #ff2a2a; }
+        .buttons-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; justify-content: center; }
+        .btn-tdt { background: #0066cc; border: none; color: white; padding: 8px 12px; border-radius: 25px; cursor: pointer; font-size: 11px; }
+        .btn-radio { background: #2c7a4d; border: none; color: white; padding: 8px 12px; border-radius: 25px; cursor: pointer; font-size: 11px; }
+        .btn-m3u { background: #ff2a2a; border: none; color: white; padding: 8px 12px; border-radius: 25px; cursor: pointer; font-size: 11px; }
+        .fav-buttons { display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; }
+        .btn-export { background: #555; border: none; color: white; padding: 5px 10px; border-radius: 20px; cursor: pointer; font-size: 10px; }
+        .btn-export:hover { background: #777; }
+        .upload-area { text-align: center; padding: 12px; border: 2px dashed #ff2a2a; border-radius: 12px; margin-bottom: 15px; cursor: pointer; background: #0f0f0f; font-size: 12px; display: none; }
+        .saved-list { margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 5px; }
+        .saved-list button { background: #2c7a4d; border: none; color: white; padding: 4px 8px; border-radius: 15px; font-size: 10px; cursor: pointer; }
+        .search-box { margin-bottom: 15px; }
+        .search-box input { width: 100%; padding: 10px; background: #1e1e1e; border: 1px solid #333; color: white; border-radius: 8px; }
+        .channels-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; padding: 5px; }
+        .channel-card { background: #111; border-radius: 8px; padding: 8px; cursor: pointer; border: 1px solid #222; transition: 0.2s; text-align: center; position: relative; }
+        .channel-card:hover { border-color: #ff2a2a; background: #1a1a1a; }
+        .channel-card .thumbnail { font-size: 28px; margin-bottom: 5px; }
+        .channel-card .channel-number { font-size: 9px; color: #ffaa00; background: #1a1a1a; display: inline-block; padding: 2px 6px; border-radius: 10px; margin-bottom: 4px; }
+        .channel-card .channel-name { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .fav-star { position: absolute; top: 3px; right: 5px; font-size: 12px; cursor: pointer; color: #555; z-index: 10; }
+        .fav-star.active { color: #ffaa00; }
+        .counter { font-size: 11px; color: #ffaa00; text-align: center; padding: 5px; }
+        .fullscreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: #000; }
+        .fullscreen .mini-player { width: 100%; height: 100%; aspect-ratio: unset; }
+        .fullscreen .player-info, .fullscreen .channels-column { display: none; }
+        .exit-fullscreen { position: fixed; bottom: 20px; right: 20px; z-index: 10000; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 30px; cursor: pointer; }
+        .loading { text-align: center; padding: 20px; color: #888; }
+        @media (max-width: 768px) { .main-layout { flex-direction: column; } .player-column { width: 100%; } }
+    </style>
+</head>
+<body>
+<div class="main-layout" id="mainLayout">
+    <div class="player-column" id="playerColumn">
+        <div class="mini-player"><video id="videoPlayer" controls></video></div>
+        <div class="player-info">
+            <div class="current-channel-number" id="currentChannelNumber"></div>
+            <div class="current-channel" id="currentChannel">📺 Selecciona un canal</div>
+            <div class="nav-buttons">
+                <button class="nav-btn" id="prevChannelBtn">⏮️ ANTERIOR</button>
+                <button class="nav-btn" id="nextChannelBtn">SIGUIENTE ⏭️</button>
+            </div>
+            <div class="player-buttons">
+                <button id="fullscreenBtn">🖥️ Pantalla Completa</button>
+                <button id="copyUrlBtn">📋 Copiar URL</button>
+                <button id="openVlcBtn">🎬 Abrir en VLC</button>
+            </div>
+            <div class="info-teclas">⌨️ TECLAS: <strong style="color:#ffaa00">+</strong> o <strong style="color:#ffaa00">↑</strong> = Siguiente | <strong style="color:#ffaa00">-</strong> o <strong style="color:#ffaa00">↓</strong> = Anterior | <strong style="color:#ffaa00">NÚMEROS</strong> = Ir a canal</div>
+        </div>
+    </div>
+    
+    <div class="channels-column">
+        <div class="header"><h2>🎬 VICIO TV</h2></div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" id="tabTodos">📡 TODOS</button>
+            <button class="tab-btn" id="tabFavs">⭐ FAVORITOS</button>
+        </div>
+        
+        <div class="buttons-row">
+            <button class="btn-tdt" id="loadTdtBtn">📺 TV (500)</button>
+            <button class="btn-radio" id="loadRadioBtn">📻 RADIO (1000)</button>
+            <button class="btn-m3u" id="loadM3uBtn">📂 TU M3U</button>
+        </div>
+        
+        <div class="fav-buttons">
+            <button class="btn-export" id="exportFavsBtn">💾 Exportar</button>
+            <button class="btn-export" id="importFavsBtn">📂 Importar</button>
+        </div>
+        <input type="file" id="importFavsFile" accept=".json" style="display:none">
+        
+        <div class="upload-area" id="uploadArea">📂 Haz clic para seleccionar .m3u</div>
+        <input type="file" id="fileInput" accept=".m3u,.m3u8,.txt" style="display:none">
+        
+        <div class="saved-list" id="savedList"></div>
+        <div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Buscar..."></div>
+        <div class="counter" id="counter">🟡 Cargando TV (500 canales)...</div>
+        <div class="channels-grid" id="channelsGrid"></div>
+    </div>
+</div>
+<div id="exitFullscreen" class="exit-fullscreen" style="display:none;">❌ Salir</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const channelsGrid = document.getElementById('channelsGrid');
+    const counter = document.getElementById('counter');
+    const video = document.getElementById('videoPlayer');
+    const currentChannelSpan = document.getElementById('currentChannel');
+    const currentChannelNumberSpan = document.getElementById('currentChannelNumber');
+    const savedListDiv = document.getElementById('savedList');
+    const searchInput = document.getElementById('searchInput');
+    const mainLayout = document.getElementById('mainLayout');
+    const playerColumn = document.getElementById('playerColumn');
+    const exitFullscreenBtn = document.getElementById('exitFullscreen');
+    const tabTodos = document.getElementById('tabTodos');
+    const tabFavs = document.getElementById('tabFavs');
+    const prevBtn = document.getElementById('prevChannelBtn');
+    const nextBtn = document.getElementById('nextChannelBtn');
+    
+    let canales = [];
+    let canalesFiltrados = [];
+    let listasGuardadas = [];
+    let favoritos = [];
+    let modoFavoritos = false;
+    let hls = null;
+    let currentIndex = -1;
+    
+    // MIS LISTAS
+    const URL_TV = 'https://raw.githubusercontent.com/LaQuay/TDTChannels/master/tv-guide/spain/tv_channels_es_M3U8.m3u';
+    const URL_RADIO = 'https://raw.githubusercontent.com/LaQuay/TDTChannels/master/radio-guide/spain/radio_es_M3U8.m3u';
+    
+    // FUNCIONES DE NAVEGACIÓN
+    function actualizarBotonesNav() {
+        if (canalesFiltrados.length === 0) {
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+            return;
+        }
+        prevBtn.disabled = (currentIndex <= 0);
+        nextBtn.disabled = (currentIndex >= canalesFiltrados.length - 1);
+    }
+    
+    function canalSiguiente() {
+        if (canalesFiltrados.length === 0) return;
+        if (currentIndex < canalesFiltrados.length - 1) {
+            reproducirPorIndex(currentIndex + 1);
+        }
+    }
+    
+    function canalAnterior() {
+        if (canalesFiltrados.length === 0) return;
+        if (currentIndex > 0) {
+            reproducirPorIndex(currentIndex - 1);
+        }
+    }
+    
+    function irACanal(numero) {
+        if (canalesFiltrados.length === 0) return;
+        const index = numero - 1;
+        if (index >= 0 && index < canalesFiltrados.length) {
+            reproducirPorIndex(index);
+        }
+    }
+    
+    function reproducirPorIndex(index) {
+        if (index < 0 || index >= canalesFiltrados.length) return;
+        currentIndex = index;
+        const canal = canalesFiltrados[currentIndex];
+        const numeroCanal = currentIndex + 1;
+        currentChannelNumberSpan.innerHTML = `📺 CANAL ${numeroCanal} de ${canalesFiltrados.length}`;
+        currentChannelSpan.innerHTML = `${canal.name}`;
+        
+        if (hls) { hls.destroy(); hls = null; }
+        const url = canal.url;
+        if (Hls.isSupported() && url.includes('.m3u8')) {
+            hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+        } else {
+            video.src = url;
+            video.play();
+        }
+        actualizarBotonesNav();
+        
+        const cards = document.querySelectorAll('.channel-card');
+        cards.forEach((card, i) => {
+            if (i === currentIndex) {
+                card.style.borderColor = '#ff2a2a';
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                card.style.borderColor = '#222';
+            }
+        });
+    }
+    
+    // ========== CONTROLES POR TECLADO ==========
+    document.addEventListener('keydown', (e) => {
+        // Tecla + o flecha arriba: siguiente
+        if (e.key === '+' || e.key === '=' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            canalSiguiente();
+        }
+        // Tecla - o flecha abajo: anterior
+        else if (e.key === '-' || e.key === 'ArrowDown' || e.key === '_') {
+            e.preventDefault();
+            canalAnterior();
+        }
+        // Números del 0 al 9: ir a canal
+        else if (/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+            const numero = parseInt(e.key);
+            if (numero === 0) {
+                irACanal(10);
+            } else {
+                irACanal(numero);
+            }
+        }
+        // Espacio: pausa/reproduce
+        else if (e.key === ' ' || e.key === 'Space') {
+            e.preventDefault();
+            if (video.paused) video.play();
+            else video.pause();
+        }
+        // Tecla F: pantalla completa
+        else if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            entrarFullscreen();
+        }
+        // ESC: salir pantalla completa
+        else if (e.key === 'Escape' && isFullscreen) {
+            salirFullscreen();
+        }
+    });
+    
+    // FAVORITOS
+    function cargarFavoritos() { const favs = localStorage.getItem('vicio_favs'); if (favs) favoritos = JSON.parse(favs); }
+    function guardarFavoritos() { localStorage.setItem('vicio_favs', JSON.stringify(favoritos)); }
+    function esFavorito(c) { return favoritos.includes(`${c.name}_${c.url}`); }
+    
+    function toggleFavorito(canal, idx) {
+        const id = `${canal.name}_${canal.url}`;
+        const pos = favoritos.indexOf(id);
+        if (pos === -1) favoritos.push(id); else favoritos.splice(pos, 1);
+        guardarFavoritos();
+        if (modoFavoritos) actualizarVista();
+        else {
+            const cards = document.querySelectorAll('.channel-card');
+            if (cards[idx]) {
+                const star = cards[idx].querySelector('.fav-star');
+                if (star) { star.classList.toggle('active'); star.innerHTML = esFavorito(canal) ? '⭐' : '☆'; }
+            }
+        }
+    }
+    
+    document.getElementById('exportFavsBtn').onclick = () => {
+        const favs = localStorage.getItem('vicio_favs');
+        if (!favs || favs === '[]') { alert('No hay favoritos'); return; }
+        const blob = new Blob([favs], {type: 'application/json'});
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `favoritos_${new Date().toISOString().slice(0,19)}.json`;
+        link.click();
+        alert('✅ Exportados');
+    };
+    
+    document.getElementById('importFavsBtn').onclick = () => document.getElementById('importFavsFile').click();
+    document.getElementById('importFavsFile').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const favs = JSON.parse(ev.target.result);
+                localStorage.setItem('vicio_favs', JSON.stringify(favs));
+                cargarFavoritos();
+                actualizarVista();
+                alert(`✅ Importados ${favs.length}`);
+            } catch(err) { alert('❌ Error'); }
+        };
+        reader.readAsText(file);
+    };
+    
+    function actualizarVista() {
+        if (modoFavoritos) {
+            canalesFiltrados = canales.filter(c => esFavorito(c));
+            counter.innerHTML = `⭐ ${canalesFiltrados.length} favoritos`;
+        } else {
+            canalesFiltrados = [...canales];
+            counter.innerHTML = `📺 ${canales.length} canales`;
+        }
+        const busq = searchInput.value.toLowerCase();
+        if (busq) { canalesFiltrados = canalesFiltrados.filter(c => c.name.toLowerCase().includes(busq)); counter.innerHTML = `🔍 ${canalesFiltrados.length}`; }
+        mostrarCanales();
+        if (canalesFiltrados.length > 0 && currentIndex >= canalesFiltrados.length) {
+            currentIndex = 0;
+        }
+        actualizarBotonesNav();
+        if (currentIndex >= 0 && canalesFiltrados.length > 0) {
+            const numeroCanal = currentIndex + 1;
+            currentChannelNumberSpan.innerHTML = `📺 CANAL ${numeroCanal} de ${canalesFiltrados.length}`;
+        }
+    }
+    
+    async function cargarURL(url, nombre) {
+        counter.innerHTML = `🟡 Cargando ${nombre}...`;
+        channelsGrid.innerHTML = '<div class="loading">⏳ Cargando...</div>';
+        try {
+            const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const resp = await fetch(proxy);
+            const txt = await resp.text();
+            parseM3U(txt, nombre);
+        } catch(e) { counter.innerHTML = `❌ Error en ${nombre}`; }
+    }
+    
+    function parseM3U(content, nombre) {
+        const lines = content.split('\n');
+        canales = [];
+        let currentName = '';
+        for (let line of lines) {
+            line = line.trim();
+            if (line.startsWith('#EXTINF:')) {
+                const match = line.match(/#EXTINF:.*?,(.*)$/);
+                if (match) currentName = match[1];
+            } else if (line && !line.startsWith('#') && currentName && line.startsWith('http')) {
+                canales.push({ name: currentName, url: line, group: nombre });
+                currentName = '';
+            }
+        }
+        if (canales.length === 0) { counter.innerHTML = `❌ No se encontraron canales`; return; }
+        actualizarVista();
+        guardarLista(nombre);
+    }
+    
+    function guardarLista(nombre) {
+        if (canales.length === 0) return;
+        const lista = { id: Date.now(), nombre: nombre, canales: canales };
+        listasGuardadas.unshift(lista);
+        if (listasGuardadas.length > 10) listasGuardadas.pop();
+        localStorage.setItem('m3u_listas', JSON.stringify(listasGuardadas));
+        mostrarListas();
+    }
+    
+    function mostrarListas() {
+        const guardadas = localStorage.getItem('m3u_listas');
+        if (guardadas) listasGuardadas = JSON.parse(guardadas);
+        if (listasGuardadas.length === 0) { savedListDiv.innerHTML = '<small>No hay listas</small>'; return; }
+        let html = '';
+        listasGuardadas.forEach(l => { html += `<button onclick="cargarLista(${l.id})">📺 ${l.nombre.substring(0,20)} (${l.canales.length})</button>`; });
+        savedListDiv.innerHTML = html;
+    }
+    
+    window.cargarLista = function(id) {
+        const lista = listasGuardadas.find(l => l.id === id);
+        if (lista) { canales = lista.canales; actualizarVista(); uploadArea.style.display = 'none'; currentIndex = -1; }
+    };
+    
+    function mostrarUpload() { uploadArea.style.display = 'block'; canales = []; actualizarVista(); counter.innerHTML = '🟡 Selecciona .m3u'; currentIndex = -1; }
+    uploadArea.onclick = () => fileInput.click();
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        parseM3U(text, file.name.replace(/\.(m3u|m3u8|txt)$/i, ''));
+        uploadArea.style.display = 'none';
+    };
+    
+    function mostrarCanales() {
+        channelsGrid.innerHTML = '';
+        canalesFiltrados.forEach((c, idx) => {
+            const card = document.createElement('div');
+            card.className = 'channel-card';
+            const idxReal = canales.findIndex(c2 => c2.name === c.name && c2.url === c.url);
+            card.onclick = (e) => { if (e.target.classList?.contains('fav-star')) return; reproducirPorIndex(idx); };
+            const icono = c.group === 'RADIO' ? '📻' : '📺';
+            const fav = esFavorito(c);
+            const numero = idx + 1;
+            card.innerHTML = `<div class="fav-star ${fav ? 'active' : ''}" onclick="event.stopPropagation(); window.toggleFav(${idxReal})">${fav ? '⭐' : '☆'}</div>
+                              <div class="thumbnail">${icono}</div>
+                              <div class="channel-number">#${numero}</div>
+                              <div class="channel-name">${c.name.substring(0, 28)}</div>`;
+            channelsGrid.appendChild(card);
+        });
+        if (canalesFiltrados.length === 0 && canales.length > 0 && modoFavoritos) {
+            channelsGrid.innerHTML = '<div style="text-align:center;padding:40px;color:#888;">⭐ Sin favoritos. Haz clic en ☆</div>';
+        }
+    }
+    
+    window.toggleFav = function(idx) { if (idx >= 0 && idx < canales.length) toggleFavorito(canales[idx], idx); };
+    
+    searchInput.addEventListener('input', () => actualizarVista());
+    tabTodos.onclick = () => { modoFavoritos = false; tabTodos.classList.add('active'); tabFavs.classList.remove('active'); actualizarVista(); };
+    tabFavs.onclick = () => { modoFavoritos = true; tabFavs.classList.add('active'); tabTodos.classList.remove('active'); actualizarVista(); };
+    
+    prevBtn.onclick = canalAnterior;
+    nextBtn.onclick = canalSiguiente;
+    
+    // Fullscreen
+    let isFullscreen = false;
+    function entrarFullscreen() { isFullscreen = true; mainLayout.classList.add('fullscreen'); playerColumn.classList.add('fullscreen'); exitFullscreenBtn.style.display = 'block'; document.body.style.overflow = 'hidden'; }
+    function salirFullscreen() { isFullscreen = false; mainLayout.classList.remove('fullscreen'); playerColumn.classList.remove('fullscreen'); exitFullscreenBtn.style.display = 'none'; document.body.style.overflow = ''; }
+    document.getElementById('fullscreenBtn').onclick = entrarFullscreen;
+    exitFullscreenBtn.onclick = salirFullscreen;
+    document.getElementById('copyUrlBtn').onclick = () => { if (video.src) { navigator.clipboard.writeText(video.src); alert('✅ URL copiada'); } };
+    document.getElementById('openVlcBtn').onclick = () => { if (video.src) { window.location.href = `vlc://${video.src}`; alert(`Pega en VLC:\n${video.src}`); } };
+    
+    document.getElementById('loadTdtBtn').onclick = () => { cargarURL(URL_TV, 'TV'); uploadArea.style.display = 'none'; };
+    document.getElementById('loadRadioBtn').onclick = () => { cargarURL(URL_RADIO, 'RADIO'); uploadArea.style.display = 'none'; };
+    document.getElementById('loadM3uBtn').onclick = () => { mostrarUpload(); };
+    
+    cargarFavoritos();
+    mostrarListas();
+    cargarURL(URL_TV, 'TV');
+</script>
+</body>
+</html>
